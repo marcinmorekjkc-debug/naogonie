@@ -164,19 +164,26 @@ async function deleteFleetVehicle(id) {
 // ---------- Sklep ----------
 
 async function listShopProducts(activeOnly = true) {
+    const cols = "id, title, description, price, url, sort_order, active, created_at, (image IS NOT NULL) AS has_image";
     const sql = activeOnly
-        ? "SELECT * FROM shop_products WHERE active = TRUE ORDER BY sort_order ASC, id ASC"
-        : "SELECT * FROM shop_products ORDER BY sort_order ASC, id ASC";
+        ? `SELECT ${cols} FROM shop_products WHERE active = TRUE ORDER BY sort_order ASC, id ASC`
+        : `SELECT ${cols} FROM shop_products ORDER BY sort_order ASC, id ASC`;
     const result = await query(sql);
     return result.rows;
 }
 
-async function createShopProduct({ title, description, price, url, sortOrder }) {
+async function createShopProduct({ title, description, price, url, sortOrder, imageBuffer, imageMime }) {
     const result = await query(
-        `INSERT INTO shop_products (title, description, price, url, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [title, description || "", price || "", url || "", sortOrder || 0]
+        `INSERT INTO shop_products (title, description, price, url, sort_order, image, image_mime)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [title, description || "", price || "", url || "", sortOrder || 0, imageBuffer || null, imageMime || null]
     );
     return result.rows[0];
+}
+
+async function getShopProductImage(id) {
+    const result = await query("SELECT image, image_mime FROM shop_products WHERE id = $1", [id]);
+    return result.rows[0] || null;
 }
 
 async function updateShopProduct(id, patch) {
@@ -241,7 +248,7 @@ module.exports = {
     findPromoCode, incrementPromoUsage, listPromoCodes, createPromoCode, setPromoCodeActive, deletePromoCode,
     insertDetection, listDetections, getDetectionImage,
     listFleetVehicles, createFleetVehicle, updateFleetVehicle, deleteFleetVehicle,
-    listShopProducts, createShopProduct, updateShopProduct, deleteShopProduct,
+    listShopProducts, createShopProduct, updateShopProduct, deleteShopProduct, getShopProductImage,
     insertContactMessage, listContactMessages,
     findAdminUser, createAdminUser, countAdminUsers,
 };
