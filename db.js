@@ -121,6 +121,46 @@ async function getDetectionImage(id) {
     return result.rows[0] || null;
 }
 
+// ---------- Flota pojazdów (centralnie zarządzana, synchronizowana do telefonów) ----------
+
+async function listFleetVehicles(activeOnly = true) {
+    const sql = activeOnly
+        ? "SELECT * FROM fleet_vehicles WHERE active = TRUE ORDER BY plate ASC"
+        : "SELECT * FROM fleet_vehicles ORDER BY created_at DESC";
+    const result = await query(sql);
+    return result.rows;
+}
+
+async function createFleetVehicle({ plate, label }) {
+    const result = await query(
+        `INSERT INTO fleet_vehicles (plate, label) VALUES ($1, $2)
+         ON CONFLICT (upper(plate)) DO UPDATE SET label = EXCLUDED.label, active = TRUE, updated_at = now()
+         RETURNING *`,
+        [plate.toUpperCase(), label || ""]
+    );
+    return result.rows[0];
+}
+
+async function updateFleetVehicle(id, patch) {
+    const fields = [];
+    const values = [];
+    let i = 1;
+    for (const [col, val] of Object.entries(patch)) {
+        fields.push(`${col} = $${i}`);
+        values.push(val);
+        i++;
+    }
+    fields.push(`updated_at = now()`);
+    values.push(id);
+    const sql = `UPDATE fleet_vehicles SET ${fields.join(", ")} WHERE id = $${i} RETURNING *`;
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
+async function deleteFleetVehicle(id) {
+    await query("DELETE FROM fleet_vehicles WHERE id = $1", [id]);
+}
+
 // ---------- Sklep ----------
 
 async function listShopProducts(activeOnly = true) {
@@ -200,6 +240,7 @@ module.exports = {
     getOrCreateAccount, updateAccount, findAccountBySubscriptionId, listAccounts,
     findPromoCode, incrementPromoUsage, listPromoCodes, createPromoCode, setPromoCodeActive, deletePromoCode,
     insertDetection, listDetections, getDetectionImage,
+    listFleetVehicles, createFleetVehicle, updateFleetVehicle, deleteFleetVehicle,
     listShopProducts, createShopProduct, updateShopProduct, deleteShopProduct,
     insertContactMessage, listContactMessages,
     findAdminUser, createAdminUser, countAdminUsers,
