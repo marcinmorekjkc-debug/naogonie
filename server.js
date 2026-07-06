@@ -315,6 +315,39 @@ app.get("/admin/me", (req, res) => {
     res.json({ loggedIn: !!(req.session && req.session.adminUsername), username: req.session?.adminUsername || null });
 });
 
+// Jednorazowy endpoint do utworzenia PIERWSZEGO konta administratora — przydatny,
+// gdy hosting (np. darmowy plan Render) nie daje dostępu do Shell/SSH.
+// Działa tylko, gdy: (1) w .env ustawiono SETUP_SECRET, (2) podano ten sam sekret
+// w adresie, (3) żaden administrator jeszcze nie istnieje. Po użyciu usuń
+// SETUP_SECRET z Environment na hostingu, żeby zamknąć ten endpoint na dobre.
+app.get("/admin/setup", async (req, res) => {
+    try {
+        if (!process.env.SETUP_SECRET) {
+            return res.status(403).send("Endpoint wyłączony — brak SETUP_SECRET w konfiguracji serwera.");
+        }
+        if (req.query.secret !== process.env.SETUP_SECRET) {
+            return res.status(403).send("Nieprawidłowy sekret.");
+        }
+        const existingCount = await db.countAdminUsers();
+        if (existingCount > 0) {
+            return res.status(400).send("Administrator już istnieje — ten endpoint działa tylko przy pierwszym uruchomieniu.");
+        }
+        const { username, password } = req.query;
+        if (!username || !password) {
+            return res.status(400).send("Brak danych. Użyj adresu w formacie: /admin/setup?secret=TWOJSEKRET&username=LOGIN&password=HASLO");
+        }
+        const hash = await bcrypt.hash(String(password), 10);
+        await db.createAdminUser(String(username), hash);
+        res.send(
+            `Utworzono administratora: ${username}. Zaloguj się teraz na /admin. ` +
+            `Następnie usuń zmienną SETUP_SECRET z Environment na hostingu, żeby zamknąć ten endpoint.`
+        );
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Błąd: " + err.message);
+    }
+});
+
 // ---- Konta ----
 app.get("/admin/api/accounts", requireAdmin, async (req, res) => {
     const accounts = await db.listAccounts(500, 0);
