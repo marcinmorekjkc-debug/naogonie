@@ -241,6 +241,20 @@ app.get("/detections/:id/image", async (req, res) => {
 });
 
 // ============================================================
+// FLOTA POJAZDÓW (publiczny odczyt — synchronizacja z aplikacją mobilną)
+// ============================================================
+
+app.get("/fleet/vehicles", async (req, res) => {
+    try {
+        const vehicles = await db.listFleetVehicles(true);
+        res.json(vehicles.map(v => ({ plate: v.plate, label: v.label })));
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Błąd serwera." });
+    }
+});
+
+// ============================================================
 // SKLEP (publiczny odczyt — czyta aplikacja mobilna)
 // ============================================================
 
@@ -391,6 +405,28 @@ app.post("/admin/api/promo-codes/:id/toggle", requireAdmin, async (req, res) => 
 
 app.delete("/admin/api/promo-codes/:id", requireAdmin, async (req, res) => {
     await db.deletePromoCode(req.params.id);
+    res.json({ ok: true });
+});
+
+// ---- Flota pojazdów ----
+app.get("/admin/api/fleet-vehicles", requireAdmin, async (req, res) => {
+    res.json(await db.listFleetVehicles(false));
+});
+
+app.post("/admin/api/fleet-vehicles", requireAdmin, async (req, res) => {
+    const { plate, label } = req.body;
+    if (!plate) return res.status(400).json({ error: "Wymagane: plate." });
+    const created = await db.createFleetVehicle({ plate, label });
+    res.json(created);
+});
+
+app.put("/admin/api/fleet-vehicles/:id", requireAdmin, async (req, res) => {
+    const updated = await db.updateFleetVehicle(req.params.id, req.body);
+    res.json(updated);
+});
+
+app.delete("/admin/api/fleet-vehicles/:id", requireAdmin, async (req, res) => {
+    await db.deleteFleetVehicle(req.params.id);
     res.json({ ok: true });
 });
 
