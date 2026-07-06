@@ -159,10 +159,16 @@
           <input type="text" id="shopUrl" placeholder="Adres URL produktu">
           <input type="number" id="shopSortOrder" placeholder="Kolejność" style="max-width:100px;">
         </div>
+        <div class="row">
+          <label class="hint" style="display:block; margin-bottom:4px;">Zdjęcie produktu (opcjonalnie)</label>
+        </div>
+        <div class="row">
+          <input type="file" id="shopImage" accept="image/*">
+        </div>
         <button class="btn primary" id="btnCreateProduct">Dodaj produkt</button>
       </div>
       <table>
-        <thead><tr><th>Nazwa</th><th>Cena</th><th>URL</th><th>Aktywny</th><th></th></tr></thead>
+        <thead><tr><th>Zdjęcie</th><th>Nazwa</th><th>Cena</th><th>URL</th><th>Aktywny</th><th></th></tr></thead>
         <tbody id="shopBody"></tbody>
       </table>
     </section>
@@ -204,6 +210,18 @@
     opts = opts || {};
     const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
     const res = await fetch(API + path, Object.assign({ credentials: "include" }, opts, { headers: headers }));
+    if (!res.ok) {
+      let err = {};
+      try { err = await res.json(); } catch (e) {}
+      throw new Error(err.error || ("Błąd " + res.status));
+    }
+    return res.json();
+  }
+
+  // Jak api(), ale wysyła FormData (multipart) — do żądań z plikiem (zdjęcie produktu).
+  // Nie ustawia ręcznie Content-Type — przeglądarka sama doda właściwy boundary.
+  async function apiForm(path, method, formData) {
+    const res = await fetch(API + path, { method: method, credentials: "include", body: formData });
     if (!res.ok) {
       let err = {};
       try { err = await res.json(); } catch (e) {}
@@ -396,7 +414,11 @@
     const products = await api("/admin/api/shop-products");
     const tbody = document.getElementById("shopBody");
     tbody.innerHTML = products.map(function(p){
+      const thumbHtml = p.has_image
+        ? '<img class="thumb" src="/shop/products/' + p.id + '/image">'
+        : '<span class="hint">brak</span>';
       return '<tr>' +
+        '<td>' + thumbHtml + '<br><input type="file" accept="image/*" class="shop-image-input" data-id="' + p.id + '" style="width:90px; font-size:10px; margin-top:4px;"></td>' +
         '<td>' + escapeHtml(p.title) + '</td>' +
         '<td>' + escapeHtml(p.price || "") + '</td>' +
         '<td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(p.url || "") + '</td>' +
@@ -406,7 +428,7 @@
           '<button class="btn danger" data-action="delete" data-id="' + p.id + '">Usuń</button>' +
         '</td>' +
       '</tr>';
-    }).join("") || '<tr><td colspan="5" class="hint">Brak produktów.</td></tr>';
+    }).join("") || '<tr><td colspan="6" class="hint">Brak produktów.</td></tr>';
 
     tbody.querySelectorAll("[data-action='toggle']").forEach(function(btn){
       btn.addEventListener("click", async function(){
@@ -423,6 +445,19 @@
         loadShop();
       });
     });
+    tbody.querySelectorAll(".shop-image-input").forEach(function(input){
+      input.addEventListener("change", async function(){
+        if (!input.files || !input.files[0]) return;
+        const fd = new FormData();
+        fd.append("image", input.files[0]);
+        try {
+          await apiForm("/admin/api/shop-products/" + input.dataset.id, "PUT", fd);
+          loadShop();
+        } catch (e) {
+          alert("Nie udało się wgrać zdjęcia: " + e.message);
+        }
+      });
+    });
   }
 
   document.getElementById("btnCreateProduct").addEventListener("click", async function(){
@@ -431,12 +466,20 @@
     const description = document.getElementById("shopDescription").value.trim();
     const url = document.getElementById("shopUrl").value.trim();
     const sortOrder = document.getElementById("shopSortOrder").value || 0;
+    const imageInput = document.getElementById("shopImage");
     if (!title) { alert("Podaj nazwę produktu."); return; }
-    await api("/admin/api/shop-products", {
-      method: "POST",
-      body: JSON.stringify({ title: title, price: price, description: description, url: url, sortOrder: sortOrder })
-    });
+
+    const fd = new FormData();
+    fd.append("title", title);
+    fd.append("price", price);
+    fd.append("description", description);
+    fd.append("url", url);
+    fd.append("sortOrder", sortOrder);
+    if (imageInput.files && imageInput.files[0]) fd.append("image", imageInput.files[0]);
+
+    await apiForm("/admin/api/shop-products", "POST", fd);
     ["shopTitle","shopPrice","shopDescription","shopUrl","shopSortOrder"].forEach(function(id){ document.getElementById(id).value = ""; });
+    imageInput.value = "";
     loadShop();
   });
 
