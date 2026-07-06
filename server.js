@@ -263,10 +263,22 @@ app.get("/shop/products", async (req, res) => {
         const products = await db.listShopProducts(true);
         res.json(products.map(p => ({
             id: p.id, title: p.title, description: p.description, price: p.price, url: p.url,
+            hasImage: p.has_image,
         })));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Błąd serwera." });
+    }
+});
+
+app.get("/shop/products/:id/image", async (req, res) => {
+    try {
+        const row = await db.getShopProductImage(req.params.id);
+        if (!row || !row.image) return res.status(404).send("Brak zdjęcia.");
+        res.set("Content-Type", row.image_mime || "image/jpeg");
+        res.send(row.image);
+    } catch (err) {
+        res.status(500).send("Błąd serwera.");
     }
 });
 
@@ -435,13 +447,31 @@ app.get("/admin/api/shop-products", requireAdmin, async (req, res) => {
     res.json(await db.listShopProducts(false));
 });
 
-app.post("/admin/api/shop-products", requireAdmin, async (req, res) => {
-    const created = await db.createShopProduct(req.body);
+app.post("/admin/api/shop-products", requireAdmin, upload.single("image"), async (req, res) => {
+    const created = await db.createShopProduct({
+        title: req.body.title,
+        description: req.body.description,
+        price: req.body.price,
+        url: req.body.url,
+        sortOrder: req.body.sortOrder,
+        imageBuffer: req.file ? req.file.buffer : null,
+        imageMime: req.file ? req.file.mimetype : null,
+    });
     res.json(created);
 });
 
-app.put("/admin/api/shop-products/:id", requireAdmin, async (req, res) => {
-    const updated = await db.updateShopProduct(req.params.id, req.body);
+app.put("/admin/api/shop-products/:id", requireAdmin, upload.single("image"), async (req, res) => {
+    const patch = {};
+    ["title", "description", "price", "url"].forEach(key => {
+        if (req.body[key] !== undefined) patch[key] = req.body[key];
+    });
+    if (req.body.sortOrder !== undefined) patch.sort_order = req.body.sortOrder;
+    if (req.body.active !== undefined) patch.active = req.body.active === "true" || req.body.active === true;
+    if (req.file) {
+        patch.image = req.file.buffer;
+        patch.image_mime = req.file.mimetype;
+    }
+    const updated = await db.updateShopProduct(req.params.id, patch);
     res.json(updated);
 });
 
