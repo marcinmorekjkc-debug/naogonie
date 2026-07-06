@@ -87,6 +87,7 @@
   <nav>
     <button class="tab-btn active" data-tab="accounts">Konta</button>
     <button class="tab-btn" data-tab="promos">Kody promocyjne</button>
+    <button class="tab-btn" data-tab="fleet">Flota</button>
     <button class="tab-btn" data-tab="shop">Sklep</button>
     <button class="tab-btn" data-tab="detections">Wykrycia</button>
     <button class="tab-btn" data-tab="contact">Kontakt</button>
@@ -121,6 +122,25 @@
       <table>
         <thead><tr><th>Kod</th><th>Dni</th><th>Wykorzystania</th><th>Wygasa</th><th>Status</th><th></th></tr></thead>
         <tbody id="promosBody"></tbody>
+      </table>
+    </section>
+
+    <!-- FLOTA -->
+    <section class="tab" id="tab-fleet">
+      <div class="hint" style="margin-bottom:12px;">
+        Ta lista jest automatycznie pobierana przez aplikacje mobilne (dopisywana do tego, co użytkownik ma już lokalnie — niczego nie kasuje na telefonach).
+      </div>
+      <div class="card-form">
+        <h3 style="margin-top:0;">Nowy pojazd</h3>
+        <div class="row">
+          <input type="text" id="fleetPlate" placeholder="Numer rejestracyjny" style="text-transform:uppercase; max-width:200px;">
+          <input type="text" id="fleetLabel" placeholder="Marka/model">
+        </div>
+        <button class="btn primary" id="btnCreateFleetVehicle">Dodaj pojazd</button>
+      </div>
+      <table>
+        <thead><tr><th>Numer</th><th>Marka/model</th><th>Aktywny</th><th></th></tr></thead>
+        <tbody id="fleetBody"></tbody>
       </table>
     </section>
 
@@ -230,7 +250,7 @@
   });
 
   function loadAllTabs() {
-    loadAccounts(); loadPromos(); loadShop(); loadDetections(); loadContact();
+    loadAccounts(); loadPromos(); loadFleet(); loadShop(); loadDetections(); loadContact();
   }
 
   async function loadAccounts() {
@@ -326,6 +346,50 @@
     document.getElementById("promoMaxUses").value = "";
     document.getElementById("promoExpires").value = "";
     loadPromos();
+  });
+
+  async function loadFleet() {
+    const vehicles = await api("/admin/api/fleet-vehicles");
+    const tbody = document.getElementById("fleetBody");
+    tbody.innerHTML = vehicles.map(function(v){
+      return '<tr>' +
+        '<td style="font-family:monospace;">' + escapeHtml(v.plate) + '</td>' +
+        '<td>' + escapeHtml(v.label || "") + '</td>' +
+        '<td>' + (v.active ? '<span class="badge green">Tak</span>' : '<span class="badge red">Nie</span>') + '</td>' +
+        '<td>' +
+          '<button class="btn" data-action="toggle" data-id="' + v.id + '" data-active="' + v.active + '">' + (v.active ? "Wyłącz" : "Włącz") + '</button> ' +
+          '<button class="btn danger" data-action="delete" data-id="' + v.id + '">Usuń</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="4" class="hint">Brak pojazdów.</td></tr>';
+
+    tbody.querySelectorAll("[data-action='toggle']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        await api("/admin/api/fleet-vehicles/" + btn.dataset.id, {
+          method: "PUT", body: JSON.stringify({ active: btn.dataset.active !== "true" })
+        });
+        loadFleet();
+      });
+    });
+    tbody.querySelectorAll("[data-action='delete']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        if (!confirm("Usunąć ten pojazd z floty?")) return;
+        await api("/admin/api/fleet-vehicles/" + btn.dataset.id, { method: "DELETE" });
+        loadFleet();
+      });
+    });
+  }
+
+  document.getElementById("btnCreateFleetVehicle").addEventListener("click", async function(){
+    const plate = document.getElementById("fleetPlate").value.trim();
+    const label = document.getElementById("fleetLabel").value.trim();
+    if (!plate) { alert("Podaj numer rejestracyjny."); return; }
+    await api("/admin/api/fleet-vehicles", {
+      method: "POST", body: JSON.stringify({ plate: plate, label: label })
+    });
+    document.getElementById("fleetPlate").value = "";
+    document.getElementById("fleetLabel").value = "";
+    loadFleet();
   });
 
   async function loadShop() {
