@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NaOgonie.pl — Panel administracyjny</title>
+<style>
+  :root{
+    --asphalt:#12151A; --panel:#1B2027; --panel-raised:#20262E; --line:#2A3038;
+    --amber:#FFB020; --green:#2FBF71; --red:#FF4757; --fog:#ECEFF3; --steel:#8A94A3;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--asphalt); color:var(--fog); font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+  header{padding:16px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
+  header h1{font-size:18px; margin:0; letter-spacing:.02em;}
+  header .brand{color:var(--amber); font-size:11px; letter-spacing:.15em; text-transform:uppercase;}
+  button{cursor:pointer; font-family:inherit;}
+  .btn{background:var(--panel-raised); color:var(--fog); border:1px solid var(--amber); border-radius:6px; padding:8px 14px; font-size:13px;}
+  .btn.primary{background:var(--amber); color:#1a1305; border:none; font-weight:600;}
+  .btn.danger{border-color:var(--red); color:var(--red);}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+  input, select, textarea{background:var(--panel-raised); border:1px solid var(--line); color:var(--fog);
+    border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit;}
+
+  #loginScreen{display:flex; align-items:center; justify-content:center; height:100vh;}
+  #loginScreen .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:28px; width:320px;}
+  #loginScreen h2{margin-top:0;}
+  #loginScreen input{width:100%; margin-bottom:10px;}
+  #loginError{color:var(--red); font-size:12px; min-height:16px;}
+
+  #app{display:none;}
+  nav{display:flex; gap:4px; padding:12px 24px 0; border-bottom:1px solid var(--line);}
+  nav button{background:none; border:none; color:var(--steel); padding:10px 16px; font-size:13px; border-bottom:2px solid transparent;}
+  nav button.active{color:var(--amber); border-bottom-color:var(--amber);}
+  main{padding:24px; max-width:1100px; margin:0 auto;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel); border-radius:8px; overflow:hidden;}
+  th{text-align:left; background:var(--panel-raised); color:var(--steel); padding:10px; font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
+  td{padding:10px; border-top:1px solid var(--line); vertical-align:middle;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .badge{display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; border:1px solid var(--line);}
+  .badge.green{color:var(--green); border-color:var(--green);}
+  .badge.red{color:var(--red); border-color:var(--red);}
+  .badge.amber{color:var(--amber); border-color:var(--amber);}
+
+  .toolbar{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
+  .toolbar input{flex:1; min-width:160px;}
+
+  .card-form{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px;}
+  .card-form .row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  .card-form .row input, .card-form .row textarea{flex:1; min-width:140px;}
+
+  .thumb{width:48px; height:48px; object-fit:cover; border-radius:4px; background:var(--panel-raised); cursor:pointer;}
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:50;}
+  .modal-overlay img{max-width:90vw; max-height:85vh; border-radius:8px;}
+
+  .hint{color:var(--steel); font-size:12px;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="card">
+    <div class="brand">NO 4 SPEED GROUP</div>
+    <h2>Panel administracyjny</h2>
+    <input type="text" id="loginUsername" placeholder="Login">
+    <input type="password" id="loginPassword" placeholder="Hasło">
+    <button class="btn primary" id="btnLogin" style="width:100%;">Zaloguj</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div>
+      <div class="brand">NO 4 SPEED GROUP</div>
+      <h1>NaOgonie.pl — Panel administracyjny</h1>
+    </div>
+    <div>
+      <span class="hint" id="whoAmI"></span>
+      <button class="btn" id="btnLogout" style="margin-left:12px;">Wyloguj</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="tab-btn active" data-tab="accounts">Konta</button>
+    <button class="tab-btn" data-tab="promos">Kody promocyjne</button>
+    <button class="tab-btn" data-tab="shop">Sklep</button>
+    <button class="tab-btn" data-tab="detections">Wykrycia</button>
+    <button class="tab-btn" data-tab="contact">Kontakt</button>
+  </nav>
+
+  <main>
+
+    <!-- KONTA -->
+    <section class="tab active" id="tab-accounts">
+      <div class="toolbar">
+        <input type="text" id="accountsSearch" placeholder="Szukaj po e-mailu…">
+        <button class="btn" id="btnRefreshAccounts">Odśwież</button>
+      </div>
+      <table>
+        <thead><tr><th>E-mail</th><th>Status</th><th>Trial do</th><th>Promo do</th><th>Utworzono</th><th></th></tr></thead>
+        <tbody id="accountsBody"></tbody>
+      </table>
+    </section>
+
+    <!-- KODY PROMOCYJNE -->
+    <section class="tab" id="tab-promos">
+      <div class="card-form">
+        <h3 style="margin-top:0;">Nowy kod</h3>
+        <div class="row">
+          <input type="text" id="promoCode" placeholder="KOD (np. WELCOME14)" style="text-transform:uppercase;">
+          <input type="number" id="promoDays" placeholder="Liczba dni" style="max-width:120px;">
+          <input type="number" id="promoMaxUses" placeholder="Limit użyć (puste = bez limitu)" style="max-width:200px;">
+          <input type="date" id="promoExpires" style="max-width:160px;">
+        </div>
+        <button class="btn primary" id="btnCreatePromo">Utwórz kod</button>
+      </div>
+      <table>
+        <thead><tr><th>Kod</th><th>Dni</th><th>Wykorzystania</th><th>Wygasa</th><th>Status</th><th></th></tr></thead>
+        <tbody id="promosBody"></tbody>
+      </table>
+    </section>
+
+    <!-- SKLEP -->
+    <section class="tab" id="tab-shop">
+      <div class="card-form">
+        <h3 style="margin-top:0;">Nowy produkt</h3>
+        <div class="row">
+          <input type="text" id="shopTitle" placeholder="Nazwa produktu">
+          <input type="text" id="shopPrice" placeholder="Cena (np. 149 zł)" style="max-width:140px;">
+        </div>
+        <div class="row">
+          <textarea id="shopDescription" placeholder="Opis" rows="2"></textarea>
+        </div>
+        <div class="row">
+          <input type="text" id="shopUrl" placeholder="Adres URL produktu">
+          <input type="number" id="shopSortOrder" placeholder="Kolejność" style="max-width:100px;">
+        </div>
+        <button class="btn primary" id="btnCreateProduct">Dodaj produkt</button>
+      </div>
+      <table>
+        <thead><tr><th>Nazwa</th><th>Cena</th><th>URL</th><th>Aktywny</th><th></th></tr></thead>
+        <tbody id="shopBody"></tbody>
+      </table>
+    </section>
+
+    <!-- WYKRYCIA -->
+    <section class="tab" id="tab-detections">
+      <div class="toolbar">
+        <input type="text" id="detectionsEmailFilter" placeholder="Filtruj po e-mailu konta…">
+        <button class="btn" id="btnFilterDetections">Filtruj</button>
+        <button class="btn" id="btnRefreshDetections">Odśwież</button>
+      </div>
+      <table>
+        <thead><tr><th>Zdjęcie</th><th>Numer</th><th>Marka/model</th><th>Konto</th><th>Lokalizacja</th><th>Data</th></tr></thead>
+        <tbody id="detectionsBody"></tbody>
+      </table>
+    </section>
+
+    <!-- KONTAKT -->
+    <section class="tab" id="tab-contact">
+      <table>
+        <thead><tr><th>Data</th><th>Od</th><th>Temat</th><th>Wiadomość</th></tr></thead>
+        <tbody id="contactBody"></tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<div class="modal-overlay" id="imageModal">
+  <img id="modalImage" src="">
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const API = "";
+
+  async function api(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    const res = await fetch(API + path, Object.assign({ credentials: "include" }, opts, { headers: headers }));
+    if (!res.ok) {
+      let err = {};
+      try { err = await res.json(); } catch (e) {}
+      throw new Error(err.error || ("Błąd " + res.status));
+    }
+    return res.json();
+  }
+
+  async function checkSession() {
+    const me = await api("/admin/me");
+    if (me.loggedIn) {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      document.getElementById("whoAmI").textContent = "Zalogowano jako: " + me.username;
+      loadAllTabs();
+    }
+  }
+
+  document.getElementById("btnLogin").addEventListener("click", async function(){
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errorEl = document.getElementById("loginError");
+    errorEl.textContent = "";
+    try {
+      await api("/admin/login", { method: "POST", body: JSON.stringify({ username: username, password: password }) });
+      await checkSession();
+    } catch (e) {
+      errorEl.textContent = e.message;
+    }
+  });
+
+  document.getElementById("btnLogout").addEventListener("click", async function(){
+    await api("/admin/logout", { method: "POST" });
+    location.reload();
+  });
+
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  function loadAllTabs() {
+    loadAccounts(); loadPromos(); loadShop(); loadDetections(); loadContact();
+  }
+
+  async function loadAccounts() {
+    const search = document.getElementById("accountsSearch").value.trim().toLowerCase();
+    const accounts = await api("/admin/api/accounts");
+    const filtered = search ? accounts.filter(function(a){ return a.email.includes(search); }) : accounts;
+    const tbody = document.getElementById("accountsBody");
+    tbody.innerHTML = filtered.map(function(a){
+      const statusBadge = a.premium ? '<span class="badge green">Premium</span>'
+        : a.trialActive ? '<span class="badge amber">Trial</span>'
+        : a.promoActive ? '<span class="badge amber">Promo</span>'
+        : '<span class="badge red">Brak dostępu</span>';
+      return '<tr>' +
+        '<td>' + escapeHtml(a.email) + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td>' + (a.trialActive ? new Date(a.trialEndsAt).toLocaleDateString("pl-PL") : "—") + '</td>' +
+        '<td>' + (a.promoEndsAt ? new Date(a.promoEndsAt).toLocaleDateString("pl-PL") : "—") + '</td>' +
+        '<td>' + new Date(a.created_at).toLocaleDateString("pl-PL") + '</td>' +
+        '<td>' +
+          '<button class="btn" data-action="grant7" data-email="' + escapeHtml(a.email) + '">+7 dni</button> ' +
+          '<button class="btn" data-action="premium-toggle" data-email="' + escapeHtml(a.email) + '" data-premium="' + a.premium + '">' + (a.premium ? "Odbierz Premium" : "Nadaj Premium") + '</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="6" class="hint">Brak kont.</td></tr>';
+
+    tbody.querySelectorAll("[data-action='grant7']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        await api("/admin/api/accounts/" + encodeURIComponent(btn.dataset.email) + "/grant-days", {
+          method: "POST", body: JSON.stringify({ days: 7 })
+        });
+        loadAccounts();
+      });
+    });
+    tbody.querySelectorAll("[data-action='premium-toggle']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        const current = btn.dataset.premium === "true";
+        await api("/admin/api/accounts/" + encodeURIComponent(btn.dataset.email) + "/set-premium", {
+          method: "POST", body: JSON.stringify({ premium: !current })
+        });
+        loadAccounts();
+      });
+    });
+  }
+  document.getElementById("btnRefreshAccounts").addEventListener("click", loadAccounts);
+  document.getElementById("accountsSearch").addEventListener("input", loadAccounts);
+
+  async function loadPromos() {
+    const promos = await api("/admin/api/promo-codes");
+    const tbody = document.getElementById("promosBody");
+    tbody.innerHTML = promos.map(function(p){
+      return '<tr>' +
+        '<td style="font-family:monospace;">' + escapeHtml(p.code) + '</td>' +
+        '<td>' + p.days + '</td>' +
+        '<td>' + p.used_count + (p.max_uses ? " / " + p.max_uses : "") + '</td>' +
+        '<td>' + (p.expires_at ? new Date(p.expires_at).toLocaleDateString("pl-PL") : "—") + '</td>' +
+        '<td>' + (p.active ? '<span class="badge green">Aktywny</span>' : '<span class="badge red">Wyłączony</span>') + '</td>' +
+        '<td>' +
+          '<button class="btn" data-action="toggle" data-id="' + p.id + '" data-active="' + p.active + '">' + (p.active ? "Wyłącz" : "Włącz") + '</button> ' +
+          '<button class="btn danger" data-action="delete" data-id="' + p.id + '">Usuń</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="6" class="hint">Brak kodów.</td></tr>';
+
+    tbody.querySelectorAll("[data-action='toggle']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        await api("/admin/api/promo-codes/" + btn.dataset.id + "/toggle", {
+          method: "POST", body: JSON.stringify({ active: btn.dataset.active !== "true" })
+        });
+        loadPromos();
+      });
+    });
+    tbody.querySelectorAll("[data-action='delete']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        if (!confirm("Usunąć ten kod?")) return;
+        await api("/admin/api/promo-codes/" + btn.dataset.id, { method: "DELETE" });
+        loadPromos();
+      });
+    });
+  }
+
+  document.getElementById("btnCreatePromo").addEventListener("click", async function(){
+    const code = document.getElementById("promoCode").value.trim();
+    const days = document.getElementById("promoDays").value;
+    const maxUses = document.getElementById("promoMaxUses").value;
+    const expiresAt = document.getElementById("promoExpires").value;
+    if (!code || !days) { alert("Podaj kod i liczbę dni."); return; }
+    await api("/admin/api/promo-codes", {
+      method: "POST",
+      body: JSON.stringify({ code: code, days: days, maxUses: maxUses || null, expiresAt: expiresAt || null })
+    });
+    document.getElementById("promoCode").value = "";
+    document.getElementById("promoDays").value = "";
+    document.getElementById("promoMaxUses").value = "";
+    document.getElementById("promoExpires").value = "";
+    loadPromos();
+  });
+
+  async function loadShop() {
+    const products = await api("/admin/api/shop-products");
+    const tbody = document.getElementById("shopBody");
+    tbody.innerHTML = products.map(function(p){
+      return '<tr>' +
+        '<td>' + escapeHtml(p.title) + '</td>' +
+        '<td>' + escapeHtml(p.price || "") + '</td>' +
+        '<td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(p.url || "") + '</td>' +
+        '<td>' + (p.active ? '<span class="badge green">Tak</span>' : '<span class="badge red">Nie</span>') + '</td>' +
+        '<td>' +
+          '<button class="btn" data-action="toggle" data-id="' + p.id + '" data-active="' + p.active + '">' + (p.active ? "Ukryj" : "Pokaż") + '</button> ' +
+          '<button class="btn danger" data-action="delete" data-id="' + p.id + '">Usuń</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="5" class="hint">Brak produktów.</td></tr>';
+
+    tbody.querySelectorAll("[data-action='toggle']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        await api("/admin/api/shop-products/" + btn.dataset.id, {
+          method: "PUT", body: JSON.stringify({ active: btn.dataset.active !== "true" })
+        });
+        loadShop();
+      });
+    });
+    tbody.querySelectorAll("[data-action='delete']").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        if (!confirm("Usunąć ten produkt?")) return;
+        await api("/admin/api/shop-products/" + btn.dataset.id, { method: "DELETE" });
+        loadShop();
+      });
+    });
+  }
+
+  document.getElementById("btnCreateProduct").addEventListener("click", async function(){
+    const title = document.getElementById("shopTitle").value.trim();
+    const price = document.getElementById("shopPrice").value.trim();
+    const description = document.getElementById("shopDescription").value.trim();
+    const url = document.getElementById("shopUrl").value.trim();
+    const sortOrder = document.getElementById("shopSortOrder").value || 0;
+    if (!title) { alert("Podaj nazwę produktu."); return; }
+    await api("/admin/api/shop-products", {
+      method: "POST",
+      body: JSON.stringify({ title: title, price: price, description: description, url: url, sortOrder: sortOrder })
+    });
+    ["shopTitle","shopPrice","shopDescription","shopUrl","shopSortOrder"].forEach(function(id){ document.getElementById(id).value = ""; });
+    loadShop();
+  });
+
+  async function loadDetections() {
+    const email = document.getElementById("detectionsEmailFilter").value.trim();
+    const qs = email ? "?email=" + encodeURIComponent(email) : "";
+    const detections = await api("/admin/api/detections" + qs);
+    const tbody = document.getElementById("detectionsBody");
+    tbody.innerHTML = detections.map(function(d){
+      return '<tr>' +
+        '<td>' + (d.has_image ? '<img class="thumb" data-src="/detections/' + d.id + '/image" src="/detections/' + d.id + '/image">' : "—") + '</td>' +
+        '<td style="font-family:monospace;">' + escapeHtml(d.plate) + '</td>' +
+        '<td>' + escapeHtml(d.label || "") + '</td>' +
+        '<td>' + escapeHtml(d.account_email) + '</td>' +
+        '<td>' + (d.latitude != null ? '<a href="https://maps.google.com/?q=' + d.latitude + ',' + d.longitude + '" target="_blank" style="color:var(--amber);">' + d.latitude.toFixed(4) + ', ' + d.longitude.toFixed(4) + '</a>' : "—") + '</td>' +
+        '<td>' + new Date(d.detected_at).toLocaleString("pl-PL") + '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="6" class="hint">Brak wykryć.</td></tr>';
+
+    tbody.querySelectorAll(".thumb").forEach(function(img){
+      img.addEventListener("click", function(){
+        document.getElementById("modalImage").src = img.dataset.src;
+        document.getElementById("imageModal").style.display = "flex";
+      });
+    });
+  }
+  document.getElementById("btnRefreshDetections").addEventListener("click", loadDetections);
+  document.getElementById("btnFilterDetections").addEventListener("click", loadDetections);
+  document.getElementById("imageModal").addEventListener("click", function(){
+    document.getElementById("imageModal").style.display = "none";
+  });
+
+  async function loadContact() {
+    const messages = await api("/admin/api/contact-messages");
+    const tbody = document.getElementById("contactBody");
+    tbody.innerHTML = messages.map(function(m){
+      return '<tr>' +
+        '<td>' + new Date(m.created_at).toLocaleString("pl-PL") + '</td>' +
+        '<td>' + escapeHtml(m.name || "—") + '<br><span class="hint">' + escapeHtml(m.email) + '</span></td>' +
+        '<td>' + escapeHtml(m.subject || "") + '</td>' +
+        '<td style="max-width:400px; white-space:pre-wrap;">' + escapeHtml(m.message) + '</td>' +
+      '</tr>';
+    }).join("") || '<tr><td colspan="4" class="hint">Brak wiadomości.</td></tr>';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]; });
+  }
+
+  checkSession();
+})();
+</script>
+</body>
+</html>
